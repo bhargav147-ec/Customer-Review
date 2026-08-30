@@ -8,8 +8,10 @@ import { ReviewDetail } from './components/ReviewDetail';
 import { TwoPanelAnalytics } from './components/TwoPanelAnalytics';
 import { SimulateReviewModal } from './components/SimulateReviewModal';
 import { SettingsModal } from './components/SettingsModal';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { ReviewListSkeleton, DetailSkeleton } from './components/SkeletonLoader';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { autoCategorizeReviews } from './utils/geminiCategorize';
 
 export default function App() {
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
@@ -18,6 +20,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSimulateModalOpen, setIsSimulateModalOpen] = useState<boolean>(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState<boolean>(false);
+  const [isAutoCategorizing, setIsAutoCategorizing] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Theme state with localStorage initialization
@@ -28,6 +32,60 @@ export default function App() {
     }
     return 'deep-space';
   });
+
+  // Global keydown handler for top-level modals and navigation
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (e.target as HTMLElement)?.tagName;
+      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
+
+      // Escape always closes any open modal or deselects multi-check
+      if (e.key === 'Escape') {
+        if (isShortcutsModalOpen) {
+          setIsShortcutsModalOpen(false);
+          return;
+        }
+        if (isSimulateModalOpen) {
+          setIsSimulateModalOpen(false);
+          return;
+        }
+        if (isSettingsModalOpen) {
+          setIsSettingsModalOpen(false);
+          return;
+        }
+        if (checkedReviewIds.length > 0) {
+          setCheckedReviewIds([]);
+          return;
+        }
+      }
+
+      if (isTyping) return;
+
+      // '?' or 'Shift + /' opens shortcuts cheatsheet
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setIsShortcutsModalOpen((prev) => !prev);
+        return;
+      }
+
+      // 's' opens simulated review modal
+      if (e.key === 's' && !e.metaKey && !e.ctrlKey && !e.altKey && !isSimulateModalOpen && !isShortcutsModalOpen && !isSettingsModalOpen) {
+        e.preventDefault();
+        setIsSimulateModalOpen(true);
+        return;
+      }
+
+      // 't' opens theme / settings modal
+      if (e.key === 't' && !e.metaKey && !e.ctrlKey && !e.altKey && !isSimulateModalOpen && !isShortcutsModalOpen && !isSettingsModalOpen) {
+        e.preventDefault();
+        setIsSettingsModalOpen(true);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isShortcutsModalOpen, isSimulateModalOpen, isSettingsModalOpen, checkedReviewIds]);
 
   // Sync theme to root element for global CSS variables
   useEffect(() => {
@@ -294,6 +352,73 @@ export default function App() {
     setCheckedReviewIds([]);
   };
 
+  // AI-powered auto-categorization handler using Gemini
+  const handleAutoCategorize = async (targetIds?: string[]) => {
+    let targetReviews: Review[] = [];
+    if (targetIds && targetIds.length > 0) {
+      targetReviews = reviews.filter((r) => targetIds.includes(r.id));
+    } else {
+      const uncategorized = reviews.filter((r) => r.category === 'uncategorized');
+      if (uncategorized.length > 0) {
+        targetReviews = uncategorized;
+      } else {
+        targetReviews = reviews;
+      }
+    }
+
+    if (targetReviews.length === 0) {
+      showToast('All reviews are already categorized', 'info');
+      return;
+    }
+
+    setIsAutoCategorizing(true);
+    showToast(`Gemini AI is analyzing ${targetReviews.length} customer review${targetReviews.length > 1 ? 's' : ''}...`, 'info');
+
+    try {
+      const response = await autoCategorizeReviews(targetReviews);
+      if (response.results && response.results.length > 0) {
+        const resultMap = new Map(response.results.map((res) => [res.id, res]));
+
+        setReviews((prev) =>
+          prev.map((r) => {
+            const res = resultMap.get(r.id);
+            if (res) {
+              return {
+                ...r,
+                category: res.category,
+                categoryConfidence: res.confidence,
+                categoryReasoning: res.reasoning,
+                isAutoCategorized: true,
+                aiInsight: res.reasoning || r.aiInsight,
+              };
+            }
+            return r;
+          })
+        );
+
+        const categoryCounts: Record<string, number> = {};
+        response.results.forEach((res) => {
+          categoryCounts[res.category] = (categoryCounts[res.category] || 0) + 1;
+        });
+        const summaryText = Object.entries(categoryCounts)
+          .map(([cat, count]) => `${count} ${cat.charAt(0).toUpperCase() + cat.slice(1)}`)
+          .join(', ');
+
+        showToast(
+          `Auto-categorized ${response.results.length} review${response.results.length > 1 ? 's' : ''} (${summaryText})!`,
+          'success'
+        );
+      } else {
+        showToast('Categorization complete', 'info');
+      }
+    } catch (err: any) {
+      console.error('Auto-categorize failed:', err);
+      showToast('Failed to auto-categorize reviews', 'urgent');
+    } finally {
+      setIsAutoCategorizing(false);
+    }
+  };
+
   const selectedReview = reviews.find((r) => r.id === selectedReviewId) || null;
 
   // Comparison reviews active when exactly 2 are checked
@@ -317,6 +442,7 @@ export default function App() {
         reviews={reviews}
         onOpenSimulateModal={() => setIsSimulateModalOpen(true)}
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
         currentTheme={theme}
         filterUrgency={filters.urgency}
         onFilterUrgencySelect={handleUrgencyFilterFromChart}
@@ -355,6 +481,8 @@ export default function App() {
                 onFilterChange={handleFilterChange}
                 onResetFilters={handleResetFilters}
                 onBatchUpdateStatus={handleBatchUpdateStatus}
+                onAutoCategorize={handleAutoCategorize}
+                isAutoCategorizing={isAutoCategorizing}
               />
             )}
           </div>
@@ -375,6 +503,8 @@ export default function App() {
                 onToggleStatus={handleToggleStatus}
                 onRegenerateDraft={handleRegenerateDraft}
                 onShowToast={showToast}
+                onAutoCategorize={handleAutoCategorize}
+                isAutoCategorizing={isAutoCategorizing}
               />
             )}
           </div>
@@ -412,6 +542,12 @@ export default function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         currentTheme={theme}
         onSelectTheme={handleSelectTheme}
+      />
+
+      {/* Keyboard Shortcuts Cheatsheet Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
       />
 
       {/* Toast Notifications */}

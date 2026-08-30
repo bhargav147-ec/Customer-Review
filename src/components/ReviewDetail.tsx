@@ -40,6 +40,8 @@ interface ReviewDetailProps {
   onToggleStatus: (reviewId: string, newStatus: ReviewStatus) => void;
   onRegenerateDraft: (reviewId: string) => void;
   onShowToast: (message: string, type?: 'success' | 'info' | 'urgent') => void;
+  onAutoCategorize?: (targetIds?: string[]) => Promise<void>;
+  isAutoCategorizing?: boolean;
 }
 
 interface SingleReviewDetailProps {
@@ -50,6 +52,8 @@ interface SingleReviewDetailProps {
   onToggleStatus: (reviewId: string, newStatus: ReviewStatus) => void;
   onRegenerateDraft: (reviewId: string) => void;
   onShowToast: (message: string, type?: 'success' | 'info' | 'urgent') => void;
+  onAutoCategorize?: (targetIds?: string[]) => Promise<void>;
+  isAutoCategorizing?: boolean;
 }
 
 const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
@@ -60,6 +64,8 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
   onToggleStatus,
   onRegenerateDraft,
   onShowToast,
+  onAutoCategorize,
+  isAutoCategorizing = false,
 }) => {
   const [draftText, setDraftText] = useState<string>('');
   const [selectedTone, setSelectedTone] = useState<AiDraftTone>('professional');
@@ -183,6 +189,66 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
       onShowToast('Entering Side-by-Side Comparison Mode', 'info');
     }
   };
+
+  // Keyboard shortcut listener for Reply and Review actions
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      // 1. Post reply: Cmd+Enter (Mac) or Ctrl+Enter (Win/Linux)
+      if (isCmdOrCtrl && e.key === 'Enter') {
+        if (!isReplied && draftText.trim() && !isPosting) {
+          e.preventDefault();
+          handlePost();
+          return;
+        }
+      }
+
+      // Ignore single-key shortcuts when typing in an input, textarea, or select element
+      const activeTag = (e.target as HTMLElement)?.tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) {
+        return;
+      }
+
+      // 2. Draft Tone Selection (1: Empathetic, 2: Formal, 3: Conciliatory, 4: Appreciative)
+      if (!isReplied) {
+        const tones: AiDraftTone[] = ['empathetic', 'professional', 'conciliatory', 'appreciative'];
+        if (['1', '2', '3', '4'].includes(e.key)) {
+          e.preventDefault();
+          const index = parseInt(e.key, 10) - 1;
+          if (tones[index]) {
+            handleToneSelect(tones[index]);
+          }
+          return;
+        }
+      }
+
+      // 3. Mark Resolved / Toggle Status: 'e' or 'r'
+      if ((e.key === 'e' || e.key === 'r') && !isCmdOrCtrl) {
+        e.preventDefault();
+        handleToggleResolvedState();
+        return;
+      }
+
+      // 4. Copy Draft: 'c'
+      if (e.key === 'c' && !isCmdOrCtrl && !e.altKey) {
+        e.preventDefault();
+        handleCopy();
+        return;
+      }
+
+      // 5. Regenerate AI Draft: 'g'
+      if (e.key === 'g' && !isReplied && !isCmdOrCtrl) {
+        e.preventDefault();
+        handleRegenerate();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [draftText, isReplied, isPosting, review?.id, selectedTone]);
 
   return (
     <div 
@@ -352,12 +418,60 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
         {/* AI Insight Badge: Single-sentence summary of primary customer intent or emotional nuance */}
         <AiInsightBadge review={review} />
 
+        {/* Uncategorized Review Action Prompt Card */}
+        {review.category === 'uncategorized' && onAutoCategorize && (
+          <div 
+            id="detail-uncategorized-banner"
+            className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-200 animate-in fade-in duration-200"
+          >
+            <div className="flex items-start sm:items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-amber-900/60 border border-amber-500/50 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              </div>
+              <div>
+                <span className="font-semibold text-amber-100 block sm:inline">Uncategorized Customer Feedback:</span>
+                <span className="text-amber-200/80 text-[11px] sm:ml-1 block sm:inline">
+                  Let Gemini analyze the review content and assign the most appropriate operational issue category.
+                </span>
+              </div>
+            </div>
+            <button
+              id="detail-auto-categorize-single-btn"
+              onClick={() => onAutoCategorize([review.id])}
+              disabled={isAutoCategorizing}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-zinc-950 font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isAutoCategorizing ? 'animate-spin' : ''}`} />
+              <span>{isAutoCategorizing ? 'Categorizing...' : 'Auto-Categorize'}</span>
+            </button>
+          </div>
+        )}
+
         {/* Triage Tag Pills */}
-        <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="text-[var(--text-dim)] font-mono text-[11px]">Triage Tags:</span>
-          <SentimentBadge sentiment={review.sentiment} size="md" />
-          <CategoryBadge category={review.category} size="md" />
-          <UrgencyBadge urgency={review.urgency} size="md" />
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-[var(--text-dim)] font-mono text-[11px]">Triage Tags:</span>
+            <SentimentBadge sentiment={review.sentiment} size="md" />
+            <CategoryBadge category={review.category} size="md" isAutoCategorized={review.isAutoCategorized} />
+            <UrgencyBadge urgency={review.urgency} size="md" />
+          </div>
+
+          {/* AI Category Classification Reasoning Pill */}
+          {review.categoryReasoning && (
+            <div className="text-[11px] text-[var(--text-muted)] font-mono bg-[var(--bg-input)] px-3 py-2 rounded-lg border border-[var(--border-subtle)] flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="truncate">
+                  <strong className="text-[var(--text-main)]">AI Categorization:</strong> {review.categoryReasoning}
+                </span>
+              </div>
+              {typeof review.categoryConfidence === 'number' && (
+                <span className="shrink-0 text-[10px] text-cyan-300 font-bold bg-cyan-950/80 px-2 py-0.5 rounded-md border border-cyan-500/40">
+                  {Math.round(review.categoryConfidence * 100)}% Confidence
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* AI Reply Generation / Audit Trail Section */}
@@ -377,21 +491,30 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
               </span>
             </div>
 
-            {/* Tone Selector Tabs */}
+            {/* Tone Selector Tabs with Shortcut numbers */}
             {!isReplied && (
-              <div className="flex items-center bg-[var(--bg-input)] p-1 rounded-xl border border-[var(--border-subtle)] text-xs">
-                {(['empathetic', 'professional', 'conciliatory', 'appreciative'] as AiDraftTone[]).map((tone) => (
+              <div className="flex items-center bg-[var(--bg-input)] p-1 rounded-xl border border-[var(--border-subtle)] text-xs gap-1">
+                {([
+                  { key: 'empathetic', label: 'Empathetic', num: '1' },
+                  { key: 'professional', label: 'Formal', num: '2' },
+                  { key: 'conciliatory', label: 'Conciliatory', num: '3' },
+                  { key: 'appreciative', label: 'Appreciative', num: '4' },
+                ] as const).map((item) => (
                   <button
-                    key={tone}
-                    id={`tone-select-btn-${tone}`}
-                    onClick={() => handleToneSelect(tone)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all cursor-pointer ${
-                      selectedTone === tone
+                    key={item.key}
+                    id={`tone-select-btn-${item.key}`}
+                    onClick={() => handleToneSelect(item.key)}
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-mono transition-all cursor-pointer ${
+                      selectedTone === item.key
                         ? 'bg-[var(--bg-surface)] text-[var(--accent-primary)] font-semibold shadow-sm border border-[var(--border-strong)]'
                         : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}
+                    title={`Switch tone to ${item.label} (Press ${item.num})`}
                   >
-                    {tone === 'empathetic' ? 'Empathetic' : tone === 'professional' ? 'Formal' : tone === 'conciliatory' ? 'Conciliatory' : 'Appreciative'}
+                    <span>{item.label}</span>
+                    <kbd className="hidden md:inline-flex items-center justify-center w-3.5 h-3.5 text-[9px] font-mono rounded bg-[var(--bg-surface)] text-[var(--text-dim)] border border-[var(--border-subtle)]">
+                      {item.num}
+                    </kbd>
                   </button>
                 ))}
               </div>
@@ -441,7 +564,16 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
               value={draftText}
               disabled={isReplied}
               onChange={(e) => handleDraftChange(e.target.value)}
-              placeholder="Type or customize your response here..."
+              onKeyDown={(e) => {
+                const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  if (!isReplied && draftText.trim() && !isPosting) {
+                    handlePost();
+                  }
+                }
+              }}
+              placeholder="Type or customize your response here... (Press Cmd+Enter to post)"
               className={`w-full p-3.5 text-xs sm:text-sm rounded-xl leading-relaxed transition-all focus:outline-none min-h-[110px] max-h-[220px] ${
                 isReplied
                   ? 'bg-[var(--bg-input)] border border-emerald-500/30 text-[var(--text-muted)] cursor-not-allowed'
@@ -477,9 +609,11 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
             id="copy-draft-btn"
             onClick={handleCopy}
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-xl bg-[var(--bg-input)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:border-[var(--border-strong)] transition-colors cursor-pointer"
+            title="Copy response text (Press 'c')"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
             <span>{copied ? 'Copied' : 'Copy Text'}</span>
+            <kbd className="hidden sm:inline-block px-1 text-[9px] font-mono text-[var(--text-dim)] bg-[var(--bg-surface)] rounded border border-[var(--border-subtle)]">c</kbd>
           </button>
 
           {!isReplied && (
@@ -487,9 +621,11 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
               id="regenerate-draft-btn"
               onClick={handleRegenerate}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-xl bg-[var(--bg-input)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:border-[var(--border-strong)] transition-colors cursor-pointer"
+              title="Regenerate with AI (Press 'g')"
             >
               <RefreshCw className="w-3.5 h-3.5 text-[var(--text-muted)]" />
               <span>Regenerate</span>
+              <kbd className="hidden sm:inline-block px-1 text-[9px] font-mono text-[var(--text-dim)] bg-[var(--bg-surface)] rounded border border-[var(--border-subtle)]">g</kbd>
             </button>
           )}
 
@@ -530,6 +666,7 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
               onClick={handlePost}
               disabled={isPosting || !draftText.trim()}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-[var(--accent-primary)] hover:opacity-90 active:scale-95 text-zinc-950 font-semibold text-xs disabled:opacity-50 transition-all shadow-md cursor-pointer"
+              title="Post Reply (Cmd+Enter or Ctrl+Enter)"
             >
               {isPosting ? (
                 <>
@@ -540,6 +677,9 @@ const SingleReviewDetail: React.FC<SingleReviewDetailProps> = ({
                 <>
                   <Send className="w-3.5 h-3.5 text-zinc-950" />
                   <span>Post Reply to {review.platform.toUpperCase()}</span>
+                  <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-zinc-950/20 text-zinc-950 border border-zinc-950/30 ml-1">
+                    {typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0 ? '⌘' : 'Ctrl'}↵
+                  </kbd>
                 </>
               )}
             </button>
@@ -563,6 +703,8 @@ export const ReviewDetail: React.FC<ReviewDetailProps> = ({
   onToggleStatus,
   onRegenerateDraft,
   onShowToast,
+  onAutoCategorize,
+  isAutoCategorizing = false,
 }) => {
   // 1. If two reviews are selected for comparison, render SideBySideCompareView
   if (compareReviews && compareReviews.length === 2) {
@@ -607,6 +749,8 @@ export const ReviewDetail: React.FC<ReviewDetailProps> = ({
       onToggleStatus={onToggleStatus}
       onRegenerateDraft={onRegenerateDraft}
       onShowToast={onShowToast}
+      onAutoCategorize={onAutoCategorize}
+      isAutoCategorizing={isAutoCategorizing}
     />
   );
 };

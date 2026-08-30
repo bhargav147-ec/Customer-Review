@@ -10,38 +10,100 @@ import {
   DollarSign, 
   Users, 
   ShieldAlert,
-  Flame
+  Flame,
+  Smartphone,
+  Play,
+  ShieldCheck,
+  Globe,
+  Share2,
+  Compass
 } from 'lucide-react';
 
-export const PlatformBadge: React.FC<{ platform: Platform; size?: 'sm' | 'md' }> = ({ platform, size = 'sm' }) => {
+export const PlatformBadge: React.FC<{ 
+  platform: Platform; 
+  size?: 'sm' | 'md';
+  showIconOnly?: boolean;
+}> = ({ platform, size = 'sm', showIconOnly = false }) => {
   const sizeClasses = size === 'sm' ? 'text-[11px] px-2 py-0.5' : 'text-xs px-2.5 py-1';
+  const iconOnlyClasses = size === 'sm' ? 'p-1 text-[11px]' : 'p-1.5 text-xs';
+  const iconSize = size === 'md' ? 'w-3.5 h-3.5' : 'w-3 h-3';
   
   switch (platform) {
+    case 'appstore':
+      return (
+        <span 
+          id={`platform-badge-${platform}`}
+          title="Source: Apple App Store"
+          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#0c2238] text-sky-200 border border-sky-500/35 hover:border-sky-400/60 shadow-xs transition-colors shrink-0 ${showIconOnly ? iconOnlyClasses : sizeClasses}`}
+        >
+          <Smartphone className={`${iconSize} text-sky-400 shrink-0`} />
+          {!showIconOnly && <span className="font-semibold tracking-tight">App Store</span>}
+        </span>
+      );
+    case 'googleplay':
+      return (
+        <span 
+          id={`platform-badge-${platform}`}
+          title="Source: Google Play Store"
+          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#062c24] text-emerald-200 border border-emerald-500/35 hover:border-emerald-400/60 shadow-xs transition-colors shrink-0 ${showIconOnly ? iconOnlyClasses : sizeClasses}`}
+        >
+          <Play className={`${iconSize} text-emerald-400 fill-emerald-400/30 shrink-0`} />
+          {!showIconOnly && <span className="font-semibold tracking-tight">Google Play</span>}
+        </span>
+      );
+    case 'trustpilot':
+      return (
+        <span 
+          id={`platform-badge-${platform}`}
+          title="Source: Trustpilot Verified Reviews"
+          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#03261a] text-[#42e89f] border border-[#00b67a]/45 hover:border-[#00b67a]/70 shadow-xs transition-colors shrink-0 ${showIconOnly ? iconOnlyClasses : sizeClasses}`}
+        >
+          <ShieldCheck className={`${iconSize} text-[#00b67a] shrink-0`} />
+          {!showIconOnly && <span className="font-semibold tracking-tight">Trustpilot</span>}
+        </span>
+      );
     case 'google':
       return (
         <span 
           id={`platform-badge-${platform}`}
-          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#1e293b] text-[#93c5fd] border border-[#3b82f6]/30 ${sizeClasses}`}
+          title="Source: Google Business Profile"
+          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#13233c] text-[#93c5fd] border border-[#3b82f6]/35 hover:border-[#3b82f6]/60 shadow-xs transition-colors shrink-0 ${showIconOnly ? iconOnlyClasses : sizeClasses}`}
         >
-          <span className="font-bold text-[#60a5fa]">G</span> Google
+          <Globe className={`${iconSize} text-[#60a5fa] shrink-0`} />
+          {!showIconOnly && <span className="font-semibold tracking-tight">Google</span>}
         </span>
       );
     case 'yelp':
       return (
         <span 
           id={`platform-badge-${platform}`}
-          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#2a1215] text-[#fca5a5] border border-[#ef4444]/30 ${sizeClasses}`}
+          title="Source: Yelp Local"
+          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#2c1317] text-[#fca5a5] border border-[#ef4444]/35 hover:border-[#ef4444]/60 shadow-xs transition-colors shrink-0 ${showIconOnly ? iconOnlyClasses : sizeClasses}`}
         >
-          <Flame className="w-3 h-3 text-[#f87171]" /> Yelp
+          <Flame className={`${iconSize} text-[#f87171] fill-[#f87171]/20 shrink-0`} />
+          {!showIconOnly && <span className="font-semibold tracking-tight">Yelp</span>}
         </span>
       );
     case 'facebook':
       return (
         <span 
           id={`platform-badge-${platform}`}
-          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#172554] text-[#bfdbfe] border border-[#2563eb]/30 ${sizeClasses}`}
+          title="Source: Facebook Recommendations"
+          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#131f3c] text-[#bfdbfe] border border-[#2563eb]/35 hover:border-[#2563eb]/60 shadow-xs transition-colors shrink-0 ${showIconOnly ? iconOnlyClasses : sizeClasses}`}
         >
-          <span className="font-bold text-[#3b82f6]">f</span> Facebook
+          <Share2 className={`${iconSize} text-[#60a5fa] shrink-0`} />
+          {!showIconOnly && <span className="font-semibold tracking-tight">Facebook</span>}
+        </span>
+      );
+    case 'tripadvisor':
+      return (
+        <span 
+          id={`platform-badge-${platform}`}
+          title="Source: Tripadvisor"
+          className={`inline-flex items-center gap-1 font-medium rounded-md bg-[#062c26] text-[#a7f3d0] border border-[#10b981]/35 hover:border-[#10b981]/60 shadow-xs transition-colors shrink-0 ${showIconOnly ? iconOnlyClasses : sizeClasses}`}
+        >
+          <Compass className={`${iconSize} text-[#34d399] shrink-0`} />
+          {!showIconOnly && <span className="font-semibold tracking-tight">Tripadvisor</span>}
         </span>
       );
     default:
@@ -85,7 +147,7 @@ export const SentimentBadge: React.FC<{ sentiment: Sentiment }> = ({ sentiment }
   }
 };
 
-export const CategoryBadge: React.FC<{ category: IssueCategory }> = ({ category }) => {
+export const CategoryBadge: React.FC<{ category: IssueCategory; isAutoCategorized?: boolean }> = ({ category, isAutoCategorized }) => {
   const getIcon = () => {
     switch (category) {
       case 'service': return <Wrench className="w-3 h-3" />;
@@ -93,6 +155,8 @@ export const CategoryBadge: React.FC<{ category: IssueCategory }> = ({ category 
       case 'pricing': return <DollarSign className="w-3 h-3" />;
       case 'staff': return <Users className="w-3 h-3" />;
       case 'cleanliness': return <Sparkles className="w-3 h-3" />;
+      case 'uncategorized': return <HelpCircle className="w-3 h-3 text-amber-400" />;
+      default: return <HelpCircle className="w-3 h-3" />;
     }
   };
 
@@ -102,15 +166,37 @@ export const CategoryBadge: React.FC<{ category: IssueCategory }> = ({ category 
     pricing: 'Pricing',
     staff: 'Staff',
     cleanliness: 'Cleanliness',
+    uncategorized: 'Uncategorized',
   };
+
+  if (category === 'uncategorized') {
+    return (
+      <span 
+        id={`category-badge-${category}`}
+        className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-500/40 shadow-xs"
+        title="Uncategorized review - ready for AI Auto-Categorize"
+      >
+        {getIcon()}
+        <span>Uncategorized</span>
+      </span>
+    );
+  }
 
   return (
     <span 
       id={`category-badge-${category}`}
-      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-zinc-800/90 text-zinc-300 border border-zinc-700/60"
+      className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-all ${
+        isAutoCategorized
+          ? 'bg-cyan-950/70 text-cyan-200 border border-cyan-500/50 shadow-xs'
+          : 'bg-zinc-800/90 text-zinc-300 border border-zinc-700/60'
+      }`}
+      title={isAutoCategorized ? 'Auto-categorized by Gemini AI' : undefined}
     >
       {getIcon()}
-      {labels[category]}
+      {labels[category] || category}
+      {isAutoCategorized && (
+        <Sparkles className="w-2.5 h-2.5 text-cyan-400 ml-0.5 shrink-0" />
+      )}
     </span>
   );
 };

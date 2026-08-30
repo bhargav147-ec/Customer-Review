@@ -23,6 +23,20 @@ export const SimulateReviewModal: React.FC<SimulateReviewModalProps> = ({
 
   const presets = [
     {
+      title: '📱 App Store / Crash on Checkout',
+      author: 'Chloe Simmons',
+      platform: 'appstore' as Platform,
+      rating: 1,
+      text: 'The iOS app crashes every single time I reach the payment screen for takeout! It took my gift card balance but never generated an order confirmation. Please fix this bug immediately.',
+    },
+    {
+      title: '🛡️ Trustpilot / Verified Delivery Praise',
+      author: 'Liam Henderson',
+      platform: 'trustpilot' as Platform,
+      rating: 5,
+      text: 'Ordered corporate catering for 40 people through their web portal. Everything arrived 10 minutes early, steaming hot, with labeled allergen packaging. Exceptional execution!',
+    },
+    {
       title: '🚨 Severe Food Allergy / Legal Risk',
       author: 'Jonathan Ward',
       platform: 'google' as Platform,
@@ -149,9 +163,13 @@ export const SimulateReviewModal: React.FC<SimulateReviewModalProps> = ({
                 onChange={(e) => setPlatform(e.target.value as Platform)}
                 className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700/80 rounded-xl text-zinc-200 focus:outline-none focus:border-zinc-500"
               >
+                <option value="appstore">Apple App Store</option>
+                <option value="googleplay">Google Play Store</option>
+                <option value="trustpilot">Trustpilot</option>
                 <option value="google">Google Reviews</option>
                 <option value="yelp">Yelp</option>
                 <option value="facebook">Facebook</option>
+                <option value="tripadvisor">Tripadvisor</option>
               </select>
             </div>
 

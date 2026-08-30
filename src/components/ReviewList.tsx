@@ -40,6 +40,8 @@ interface ReviewListProps {
   onFilterChange: (newFilters: Partial<FilterState>) => void;
   onResetFilters: () => void;
   onBatchUpdateStatus?: (reviewIds: string[], newStatus: ReviewStatus) => void;
+  onAutoCategorize?: (targetReviewIds?: string[]) => Promise<void>;
+  isAutoCategorizing?: boolean;
 }
 
 // Helper to parse relative times (e.g. '18m ago', '1h ago', '2d ago') into minutes for SLA sorting
@@ -64,11 +66,19 @@ export const ReviewList: React.FC<ReviewListProps> = ({
   onFilterChange,
   onResetFilters,
   onBatchUpdateStatus,
+  onAutoCategorize,
+  isAutoCategorizing = false,
 }) => {
   // Local search text for debounced updates
   const [localSearch, setLocalSearch] = useState(filters.searchQuery);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
+
+  // Count of currently uncategorized reviews
+  const uncategorizedCount = useMemo(() => 
+    reviews.filter((r) => r.category === 'uncategorized').length,
+    [reviews]
+  );
 
   // Debounce search input by 180ms
   useEffect(() => {
@@ -184,11 +194,29 @@ export const ReviewList: React.FC<ReviewListProps> = ({
     }
   };
 
-  // Keyboard navigation handler (Up/Down arrow keys + Enter)
+  // Keyboard navigation handler (Up/Down arrow keys + j/k + x + /)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle if not typing in an input or textarea
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+      // If typing in input/textarea/select, only handle Escape to blur/clear
+      const activeTag = (e.target as HTMLElement)?.tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) {
+        if (e.key === 'Escape' && (e.target as HTMLElement)?.id === 'review-search-input') {
+          (e.target as HTMLElement).blur();
+          if (localSearch) {
+            setLocalSearch('');
+            onFilterChange({ searchQuery: '' });
+          }
+        }
+        return;
+      }
+
+      // 1. Focus search bar with '/'
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        const searchInput = document.getElementById('review-search-input');
+        if (searchInput) {
+          searchInput.focus();
+        }
         return;
       }
 
@@ -196,28 +224,53 @@ export const ReviewList: React.FC<ReviewListProps> = ({
 
       const currentIndex = filteredAndSortedReviews.findIndex((r) => r.id === selectedReviewId);
 
-      if (e.key === 'ArrowDown') {
+      // 2. Navigate Down: ArrowDown or 'j'
+      if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         const nextIndex = currentIndex < filteredAndSortedReviews.length - 1 && currentIndex >= 0
           ? currentIndex + 1 
           : 0;
         if (filteredAndSortedReviews[nextIndex]) {
-          onSelectReview(filteredAndSortedReviews[nextIndex].id);
+          const nextId = filteredAndSortedReviews[nextIndex].id;
+          onSelectReview(nextId);
+          const el = document.getElementById(`review-item-${nextId}`);
+          if (el) {
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
         }
-      } else if (e.key === 'ArrowUp') {
+        return;
+      } 
+      
+      // 3. Navigate Up: ArrowUp or 'k'
+      if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault();
         const prevIndex = currentIndex > 0 
           ? currentIndex - 1 
           : filteredAndSortedReviews.length - 1;
         if (filteredAndSortedReviews[prevIndex]) {
-          onSelectReview(filteredAndSortedReviews[prevIndex].id);
+          const prevId = filteredAndSortedReviews[prevIndex].id;
+          onSelectReview(prevId);
+          const el = document.getElementById(`review-item-${prevId}`);
+          if (el) {
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
         }
+        return;
+      }
+
+      // 4. Toggle check on active item: 'x'
+      if (e.key === 'x' && !e.metaKey && !e.ctrlKey && selectedReviewId) {
+        e.preventDefault();
+        if (onToggleCheck) {
+          onToggleCheck(selectedReviewId, {} as React.MouseEvent);
+        }
+        return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [filteredAndSortedReviews, selectedReviewId, onSelectReview]);
+  }, [filteredAndSortedReviews, selectedReviewId, onSelectReview, onToggleCheck, localSearch, onFilterChange]);
 
   // Synchronize selection if currently selected review gets filtered out
   useEffect(() => {
@@ -261,15 +314,26 @@ export const ReviewList: React.FC<ReviewListProps> = ({
               placeholder="Search reviews, names, issue types..."
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-xs bg-zinc-900/90 border border-zinc-700/80 rounded-xl text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
+              className="w-full pl-9 pr-14 py-2 text-xs bg-zinc-900/90 border border-zinc-700/80 rounded-xl text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
             />
-            {localSearch && (
+            {localSearch ? (
               <button
-                onClick={() => setLocalSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                onClick={() => {
+                  setLocalSearch('');
+                  onFilterChange({ searchQuery: '' });
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer px-1 py-0.5"
+                title="Clear search (Esc)"
               >
                 ✕
               </button>
+            ) : (
+              <kbd 
+                className="hidden sm:inline-flex absolute right-2.5 top-1/2 -translate-y-1/2 items-center justify-center px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 bg-zinc-800 rounded border border-zinc-700/60 pointer-events-none"
+                title="Press / to focus search"
+              >
+                /
+              </kbd>
             )}
           </div>
 
@@ -291,11 +355,40 @@ export const ReviewList: React.FC<ReviewListProps> = ({
             </select>
           </div>
 
+          {/* AI Auto-Categorize Action Button */}
+          {onAutoCategorize && (
+            <button
+              id="auto-categorize-btn"
+              onClick={() => onAutoCategorize()}
+              disabled={isAutoCategorizing}
+              className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm shrink-0 ${
+                uncategorizedCount > 0
+                  ? 'bg-gradient-to-r from-cyan-600 via-cyan-500 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-zinc-950 font-bold ring-1 ring-cyan-400/50 shadow-[0_0_14px_rgba(6,182,212,0.35)]'
+                  : 'bg-zinc-900/90 hover:bg-zinc-850 text-cyan-300 border border-cyan-500/30 hover:border-cyan-500/60'
+              } ${isAutoCategorizing ? 'opacity-80 cursor-wait' : ''}`}
+              title={
+                uncategorizedCount > 0
+                  ? `Analyze and categorize ${uncategorizedCount} un-categorized reviews with Gemini AI`
+                  : 'Analyze and auto-categorize reviews with Gemini AI'
+              }
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isAutoCategorizing ? 'animate-spin text-zinc-950' : uncategorizedCount > 0 ? 'text-zinc-950' : 'text-cyan-400'}`} />
+              <span className={uncategorizedCount > 0 ? 'text-zinc-950' : ''}>
+                {isAutoCategorizing ? 'Categorizing...' : 'Auto-Categorize'}
+              </span>
+              {uncategorizedCount > 0 && !isAutoCategorizing && (
+                <span className="inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-extrabold bg-zinc-950 text-amber-300 rounded-full border border-amber-400/40 ml-0.5">
+                  {uncategorizedCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Toggle More Filters */}
           <button
             id="toggle-advanced-filters-btn"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className={`p-2 rounded-xl border text-xs transition-colors cursor-pointer ${
+            className={`p-2 rounded-xl border text-xs transition-colors cursor-pointer shrink-0 ${
               showAdvancedFilters || hasActiveFilters
                 ? 'bg-cyan-950/60 border-cyan-500/50 text-cyan-300'
                 : 'bg-zinc-900/90 border-zinc-700/80 text-zinc-400 hover:text-zinc-200'
@@ -367,17 +460,26 @@ export const ReviewList: React.FC<ReviewListProps> = ({
             {/* Row 1: Platforms & Urgency */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Platform:</span>
-              {(['all', 'google', 'yelp', 'facebook'] as const).map((plat) => (
+              {([
+                { id: 'all', label: 'All Channels' },
+                { id: 'appstore', label: 'App Store' },
+                { id: 'googleplay', label: 'Google Play' },
+                { id: 'trustpilot', label: 'Trustpilot' },
+                { id: 'google', label: 'Google' },
+                { id: 'yelp', label: 'Yelp' },
+                { id: 'facebook', label: 'Facebook' },
+                { id: 'tripadvisor', label: 'Tripadvisor' },
+              ] as const).map((plat) => (
                 <button
-                  key={plat}
-                  onClick={() => onFilterChange({ platform: plat })}
+                  key={plat.id}
+                  onClick={() => onFilterChange({ platform: plat.id as Platform | 'all' })}
                   className={`px-2 py-0.5 rounded-md border text-[11px] transition-all cursor-pointer ${
-                    filters.platform === plat
-                      ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200 font-semibold'
+                    filters.platform === plat.id
+                      ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200 font-semibold shadow-xs'
                       : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
-                  {plat === 'all' ? 'All Channels' : plat.toUpperCase()}
+                  {plat.label}
                 </button>
               ))}
 
@@ -399,7 +501,7 @@ export const ReviewList: React.FC<ReviewListProps> = ({
               ))}
             </div>
 
-            {/* Row 2: Sentiment & Categories */}
+            {/* Row 2: Sentiment & Rating */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Sentiment:</span>
               {(['all', 'positive', 'neutral', 'negative'] as const).map((s) => (
@@ -432,6 +534,30 @@ export const ReviewList: React.FC<ReviewListProps> = ({
                   }`}
                 >
                   {r === 'all' ? 'All Stars' : `${r}★`}
+                </button>
+              ))}
+            </div>
+
+            {/* Row 3: Category Filter Chips */}
+            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-zinc-800/60">
+              <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Category:</span>
+              {(['all', 'service', 'quality', 'pricing', 'staff', 'cleanliness', 'uncategorized'] as const).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => onFilterChange({ category: cat })}
+                  className={`px-2 py-0.5 rounded-md border text-[11px] transition-all cursor-pointer ${
+                    filters.category === cat
+                      ? cat === 'uncategorized'
+                        ? 'bg-amber-950/80 border-amber-500 text-amber-200 font-semibold shadow-xs'
+                        : 'bg-cyan-950/80 border-cyan-500 text-cyan-200 font-semibold shadow-xs'
+                      : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {cat === 'all'
+                    ? 'All Categories'
+                    : cat === 'uncategorized'
+                    ? `UNCATEGORIZED${uncategorizedCount > 0 ? ` (${uncategorizedCount})` : ''}`
+                    : cat.toUpperCase()}
                 </button>
               ))}
             </div>
@@ -481,7 +607,21 @@ export const ReviewList: React.FC<ReviewListProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {/* Batch Auto-Categorize with Gemini */}
+            {onAutoCategorize && (
+              <button
+                id="bulk-action-auto-categorize"
+                onClick={() => onAutoCategorize(checkedReviewIds)}
+                disabled={isAutoCategorizing}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                title="Batch auto-categorize selected reviews with Gemini AI"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${isAutoCategorizing ? 'animate-spin' : ''}`} />
+                <span>{isAutoCategorizing ? 'Categorizing...' : 'Auto-Categorize'}</span>
+              </button>
+            )}
+
             {/* Batch Mark as Replied / Resolved */}
             <button
               id="bulk-action-mark-replied"
@@ -531,12 +671,19 @@ export const ReviewList: React.FC<ReviewListProps> = ({
               </button>
             )}
             <span className="text-zinc-600 hidden sm:inline">•</span>
-            <span className="hidden sm:flex items-center gap-1">
+            <span className="hidden sm:flex items-center gap-1.5">
               <Keyboard className="w-3 h-3 text-zinc-400" />
-              <span><kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">↑</kbd> <kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">↓</kbd> to navigate</span>
+              <span><kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">↑</kbd> <kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">↓</kbd> / <kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">j</kbd> <kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">k</kbd> navigate</span>
+              <span className="text-zinc-600">•</span>
+              <span><kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">x</kbd> select</span>
+              <span className="text-zinc-600">•</span>
+              <span><kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">/</kbd> search</span>
             </span>
           </div>
-          <span>Press <kbd className="px-1 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">Enter</kbd> to inspect</span>
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 font-semibold">?</kbd>
+            <span className="hidden sm:inline">shortcuts</span>
+          </span>
         </div>
       )}
 

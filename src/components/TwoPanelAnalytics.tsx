@@ -78,9 +78,13 @@ export const TwoPanelAnalytics: React.FC<TwoPanelAnalyticsProps> = ({
   const radius = 38;
   const circumference = 2 * Math.PI * radius;
   const platformColors: Record<Platform, { stroke: string; bg: string; text: string }> = {
-    google: { stroke: '#38bdf8', bg: 'rgba(56, 189, 248, 0.15)', text: 'text-sky-400' },
+    appstore: { stroke: '#38bdf8', bg: 'rgba(56, 189, 248, 0.15)', text: 'text-sky-400' },
+    googleplay: { stroke: '#34d399', bg: 'rgba(52, 211, 153, 0.15)', text: 'text-emerald-400' },
+    trustpilot: { stroke: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', text: 'text-emerald-400' },
+    google: { stroke: '#60a5fa', bg: 'rgba(96, 165, 250, 0.15)', text: 'text-blue-400' },
     yelp: { stroke: '#f43f5e', bg: 'rgba(244, 63, 94, 0.15)', text: 'text-rose-400' },
     facebook: { stroke: '#818cf8', bg: 'rgba(129, 140, 248, 0.15)', text: 'text-indigo-400' },
+    tripadvisor: { stroke: '#2dd4bf', bg: 'rgba(45, 212, 191, 0.15)', text: 'text-teal-400' },
   };
 
   let accumulatedOffset = 0;
@@ -527,7 +531,7 @@ export const TwoPanelAnalytics: React.FC<TwoPanelAnalyticsProps> = ({
                 />
 
                 {/* Segment Rings */}
-                {platformStats.map((p) => {
+                {platformStats.filter((p) => p.count > 0).map((p) => {
                   const share = p.percentage / 100;
                   const strokeDasharray = `${share * circumference} ${circumference}`;
                   const strokeDashoffset = -accumulatedOffset * circumference;
@@ -568,8 +572,8 @@ export const TwoPanelAnalytics: React.FC<TwoPanelAnalyticsProps> = ({
           </div>
 
           {/* Platform Stat Cards (Interactive click-to-filter) */}
-          <div className="md:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {platformStats.map((p) => {
+          <div className="md:col-span-7 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {platformStats.filter((p) => p.count > 0).map((p) => {
               const isSelected = activePlatformFilter === p.platform;
               const isHovered = hoveredPlatform === p.platform;
               const col = platformColors[p.platform];

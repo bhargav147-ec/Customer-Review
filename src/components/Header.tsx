@@ -9,13 +9,15 @@ import {
   Activity,
   Bot,
   Settings,
-  Palette
+  Palette,
+  Keyboard
 } from 'lucide-react';
 
 interface HeaderProps {
   reviews: Review[];
   onOpenSimulateModal: () => void;
   onOpenSettingsModal?: () => void;
+  onOpenShortcutsModal?: () => void;
   currentTheme?: ThemePalette;
   filterUrgency?: string;
   onFilterUrgencySelect?: (urgency: 'high' | 'all') => void;
@@ -25,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   reviews, 
   onOpenSimulateModal,
   onOpenSettingsModal,
+  onOpenShortcutsModal,
   currentTheme = 'deep-space',
   onFilterUrgencySelect 
 }) => {
@@ -126,8 +129,24 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Settings and Simulation trigger */}
+        {/* Right: Settings, Shortcuts and Simulation trigger */}
         <div className="flex items-center gap-2">
+          {/* Keyboard Shortcuts Helper Button */}
+          {onOpenShortcutsModal && (
+            <button
+              id="btn-open-shortcuts"
+              onClick={onOpenShortcutsModal}
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--border-strong)] transition-all cursor-pointer"
+              title="Keyboard Shortcuts (?)"
+              aria-label="View Keyboard Shortcuts"
+            >
+              <Keyboard className="w-3.5 h-3.5 text-cyan-400" />
+              <kbd className="hidden md:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-mono font-bold rounded bg-[var(--bg-input)] text-zinc-300 border border-zinc-700/60">
+                ?
+              </kbd>
+            </button>
+          )}
+
           {/* Settings / Theme Picker Button */}
           {onOpenSettingsModal && (
             <button

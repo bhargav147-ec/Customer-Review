@@ -101,7 +101,7 @@ export const ReviewListItem = React.memo<ReviewListItemProps>(({
       <div className="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-zinc-800/60 text-[11px]">
         <div className="flex items-center gap-1.5 flex-wrap">
           <SentimentBadge sentiment={review.sentiment} />
-          <CategoryBadge category={review.category} />
+          <CategoryBadge category={review.category} isAutoCategorized={review.isAutoCategorized} />
           {isHighUrgent && <UrgencyBadge urgency="high" />}
         </div>
 

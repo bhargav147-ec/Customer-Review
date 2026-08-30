@@ -1,10 +1,12 @@
-export type Platform = 'google' | 'yelp' | 'facebook';
+export type Platform = 'google' | 'yelp' | 'facebook' | 'appstore' | 'googleplay' | 'trustpilot' | 'tripadvisor';
 
 export type Sentiment = 'positive' | 'neutral' | 'negative';
 
 export type ThemePalette = 'deep-space' | 'midnight-fog' | 'obsidian';
 
-export type IssueCategory = 'service' | 'quality' | 'pricing' | 'cleanliness' | 'staff';
+export type IssueCategory = 'service' | 'quality' | 'pricing' | 'cleanliness' | 'staff' | 'uncategorized';
+
+export type StandardIssueCategory = 'service' | 'quality' | 'pricing' | 'cleanliness' | 'staff';
 
 export type UrgencyLevel = 'low' | 'medium' | 'high';
 
@@ -44,6 +46,9 @@ export interface Review {
   reply?: ReviewReply;
   verifiedCustomer?: boolean;
   orderReference?: string;
+  categoryConfidence?: number;
+  categoryReasoning?: string;
+  isAutoCategorized?: boolean;
 }
 
 export interface IssueCategoryStat {
