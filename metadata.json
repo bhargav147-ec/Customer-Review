@@ -1,0 +1,6 @@
+{
+  "name": "Customer Review Management Agent",
+  "description": "AI-powered customer review management workspace for monitoring, categorizing, and responding to customer feedback across platforms.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
